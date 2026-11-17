@@ -1,0 +1,66 @@
+name: APK Derle
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # proje.zip yüklediysen otomatik açar ve repoya ekler
+      - name: proje.zip varsa ac
+        run: |
+          if [ -f proje.zip ]; then
+            unzip -o proje.zip
+            rm proje.zip
+            git config user.name "github-actions"
+            git config user.email "actions@github.com"
+            git add -A
+            git commit -m "Proje dosyalari acildi" || true
+            git push
+          fi
+
+      - name: Proje var mi?
+        id: chk
+        run: |
+          if [ -f settings.gradle.kts ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "Proje dosyalari henuz yok, proje.zip yukle."; fi
+
+      - uses: actions/setup-java@v4
+        if: steps.chk.outputs.ok == 'true'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.chk.outputs.ok == 'true'
+        with:
+          gradle-version: 8.7
+
+      - name: Derle
+        if: steps.chk.outputs.ok == 'true'
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: APK adini duzenle
+        if: steps.chk.outputs.ok == 'true'
+        run: cp app/build/outputs/apk/debug/app-debug.apk SW-Muzik-Bulucu.apk
+
+      - uses: actions/upload-artifact@v4
+        if: steps.chk.outputs.ok == 'true'
+        with:
+          name: SW-Muzik-Bulucu
+          path: SW-Muzik-Bulucu.apk
+
+      - name: Release olustur
+        if: steps.chk.outputs.ok == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: SW Müzik Bulucu v${{ github.run_number }}
+          files: SW-Muzik-Bulucu.apk
